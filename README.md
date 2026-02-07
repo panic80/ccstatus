@@ -17,26 +17,18 @@ Albert [Opus 4.6] Context: [████▁░░░░░] 42% | $1.23 | +50/-1
 ## Prerequisites
 
 - **macOS** (uses Keychain for OAuth token retrieval)
-- **jq** — `brew install jq`
-- **curl** — included with macOS
+- **Homebrew** — the installer uses it to install jq if missing
 - A Claude Code CLI session (the OAuth token is stored automatically when you log in)
 
-## Quick Install
+## Install
 
-Paste this into your terminal:
+One command — installs jq if missing, downloads the script, and configures Claude Code:
 
 ```bash
-mkdir -p ~/.claude && \
-curl -fsSL https://raw.githubusercontent.com/panic80/ccstatus/main/statusline.sh -o ~/.claude/statusline.sh && \
-chmod +x ~/.claude/statusline.sh && \
-if [ -f ~/.claude/settings.json ]; then
-  jq '. + {"statusLine":{"type":"command","command":"~/.claude/statusline.sh","padding":2}}' ~/.claude/settings.json > ~/.claude/settings.json.tmp && mv ~/.claude/settings.json.tmp ~/.claude/settings.json
-else
-  echo '{"statusLine":{"type":"command","command":"~/.claude/statusline.sh","padding":2}}' > ~/.claude/settings.json
-fi
+curl -fsSL https://raw.githubusercontent.com/panic80/ccstatus/main/install.sh | bash
 ```
 
-Then restart Claude Code. The status line appears at the bottom of your terminal.
+Then restart Claude Code.
 
 ## Manual Install
 

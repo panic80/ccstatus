@@ -131,12 +131,16 @@ fetch_quota() {
     return
   fi
 
+  # Detect Claude Code version for User-Agent
+  local cc_version
+  cc_version=$(claude --version 2>/dev/null | awk '{print $1}' || echo "0.0.0")
+
   # Call the API
   local response
   response=$(curl -s --max-time 5 \
     -H "Authorization: Bearer ${access_token}" \
     -H "anthropic-beta: oauth-2025-04-20" \
-    -H "User-Agent: claude-code/2.0.32" \
+    -H "User-Agent: claude-code/${cc_version}" \
     "https://api.anthropic.com/api/oauth/usage" 2>/dev/null || echo "")
 
   if [[ -n "$response" ]] && echo "$response" | jq -e '.five_hour' &>/dev/null; then
@@ -147,7 +151,7 @@ fetch_quota() {
     profile=$(curl -s --max-time 5 \
       -H "Authorization: Bearer ${access_token}" \
       -H "anthropic-beta: oauth-2025-04-20" \
-      -H "User-Agent: claude-code/2.0.32" \
+      -H "User-Agent: claude-code/${cc_version}" \
       "https://api.anthropic.com/api/oauth/profile" 2>/dev/null || echo "")
 
     local display_name=""

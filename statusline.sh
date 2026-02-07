@@ -5,6 +5,11 @@
 
 set -euo pipefail
 
+if ! command -v jq &>/dev/null; then
+  echo "jq is required: brew install jq"
+  exit 1
+fi
+
 CACHE_FILE="/tmp/claude-statusline-quota-cache.json"
 CACHE_TTL=60  # seconds
 LOCK_FILE="/tmp/claude-statusline-quota.lock"

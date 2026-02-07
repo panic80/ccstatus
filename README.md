@@ -21,18 +21,42 @@ Albert [Opus 4.6] Context: [████▁░░░░░] 42% | $1.23 | +50/-1
 - **curl** — included with macOS
 - A Claude Code CLI session (the OAuth token is stored automatically when you log in)
 
-## Installation
+## Quick Install
+
+Paste this into your terminal:
+
+```bash
+mkdir -p ~/.claude && \
+curl -fsSL https://raw.githubusercontent.com/panic80/ccstatus/main/statusline.sh -o ~/.claude/statusline.sh && \
+chmod +x ~/.claude/statusline.sh && \
+if [ -f ~/.claude/settings.json ]; then
+  jq '. + {"statusLine":{"type":"command","command":"~/.claude/statusline.sh","padding":2}}' ~/.claude/settings.json > ~/.claude/settings.json.tmp && mv ~/.claude/settings.json.tmp ~/.claude/settings.json
+else
+  echo '{"statusLine":{"type":"command","command":"~/.claude/statusline.sh","padding":2}}' > ~/.claude/settings.json
+fi
+```
+
+Then restart Claude Code. The status line appears at the bottom of your terminal.
+
+## Manual Install
 
 ### 1. Download the script
 
 ```bash
+mkdir -p ~/.claude
 curl -fsSL https://raw.githubusercontent.com/panic80/ccstatus/main/statusline.sh -o ~/.claude/statusline.sh
 chmod +x ~/.claude/statusline.sh
 ```
 
 ### 2. Configure Claude Code to use it
 
-Add the `statusLine` block to your `~/.claude/settings.json`:
+If `~/.claude/settings.json` doesn't exist yet, create it:
+
+```bash
+echo '{"statusLine":{"type":"command","command":"~/.claude/statusline.sh","padding":2}}' > ~/.claude/settings.json
+```
+
+If it already exists, add the `statusLine` key to the existing JSON:
 
 ```json
 {
@@ -43,8 +67,6 @@ Add the `statusLine` block to your `~/.claude/settings.json`:
   }
 }
 ```
-
-If the file already exists, merge the `statusLine` key into the existing JSON.
 
 ### 3. Restart Claude Code
 

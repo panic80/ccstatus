@@ -25,11 +25,11 @@ RESET="\033[0m"
 # ── Read stdin JSON ──────────────────────────────────────────────────────────
 INPUT=$(cat)
 
-model=$(echo "$INPUT" | jq -r '.model.display_name // "Unknown"')
-context_pct=$(echo "$INPUT" | jq -r '.context_window.used_percentage // 0')
-cost=$(echo "$INPUT" | jq -r '.cost.total_cost_usd // 0')
-lines_added=$(echo "$INPUT" | jq -r '.cost.total_lines_added // 0')
-lines_removed=$(echo "$INPUT" | jq -r '.cost.total_lines_removed // 0')
+model=$(echo "$INPUT" | jq -r '.model.display_name // "Unknown"' 2>/dev/null || echo "Unknown")
+context_pct=$(echo "$INPUT" | jq -r '.context_window.used_percentage // 0' 2>/dev/null || echo "0")
+cost=$(echo "$INPUT" | jq -r '.cost.total_cost_usd // 0' 2>/dev/null || echo "0")
+lines_added=$(echo "$INPUT" | jq -r '.cost.total_lines_added // 0' 2>/dev/null || echo "0")
+lines_removed=$(echo "$INPUT" | jq -r '.cost.total_lines_removed // 0' 2>/dev/null || echo "0")
 
 # ── Helper: color based on percentage ────────────────────────────────────────
 color_for_pct() {
@@ -201,10 +201,10 @@ if [[ -f "$CACHE_FILE" ]]; then
 fi
 
 # ── Format cost ──────────────────────────────────────────────────────────────
-formatted_cost=$(awk "BEGIN { printf \"$%.2f\", $cost }")
+formatted_cost=$(awk "BEGIN { printf \"$%.2f\", ${cost:-0} }")
 
 # ── Round context percentage ─────────────────────────────────────────────────
-context_int=$(awk "BEGIN { printf \"%.0f\", $context_pct }")
+context_int=$(awk "BEGIN { printf \"%.0f\", ${context_pct:-0} }")
 
 # ── Build output ─────────────────────────────────────────────────────────────
 ctx_bar=$(progress_bar "$context_int" 10)

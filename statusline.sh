@@ -37,6 +37,7 @@ YELLOW="\033[33m"
 RED="\033[31m"
 DIM="\033[2m"
 BOLD="\033[1m"
+BOLD_WHITE="\033[1;97m"
 RESET="\033[0m"
 
 # ── Read stdin JSON ──────────────────────────────────────────────────────────
@@ -240,7 +241,10 @@ name_prefix=""
 if [[ -n "${display_name:-}" ]]; then
   name_prefix="${DIM}${display_name}${RESET} "
 fi
-line1="${name_prefix}${BOLD}[${model}]${RESET} Context: [${ctx_bar}] ${context_int}% | ${formatted_cost} | ${GREEN}+${lines_added}${RESET}/${RED}-${lines_removed}${RESET}"
+
+model_display="${RESET}${BOLD_WHITE}[${model}]${RESET}"
+
+line1="${name_prefix}${model_display} Context: [${ctx_bar}] ${context_int}% | ${formatted_cost} | ${GREEN}+${lines_added}${RESET}/${RED}-${lines_removed}${RESET}"
 
 if [[ "$quota_5h_pct" == "--" ]]; then
   line2="5h: -- | Weekly: --"

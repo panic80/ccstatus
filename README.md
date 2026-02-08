@@ -70,6 +70,17 @@ You can also specify directly:
 curl -fsSL <url>/install.sh | bash -s -- --theme dots
 ```
 
+## Uninstall
+
+Remove the status line files and config:
+
+```bash
+rm ~/.claude/statusline.sh ~/.claude/statusline-theme
+jq 'del(.statusLine)' ~/.claude/settings.json > ~/.claude/settings.json.tmp && mv ~/.claude/settings.json.tmp ~/.claude/settings.json
+```
+
+Restart Claude Code to apply.
+
 ## Requirements
 
 - **jq** — `brew install jq` (macOS) or `apt install jq` (Linux)

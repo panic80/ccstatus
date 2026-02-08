@@ -4,6 +4,14 @@
 
 set -euo pipefail
 
+# Ensure Homebrew is in PATH (Apple Silicon vs Intel)
+# Needed because curl|bash runs in a non-login shell where Homebrew may not be in PATH
+if [ -x "/opt/homebrew/bin/brew" ]; then
+  eval "$(/opt/homebrew/bin/brew shellenv)"
+elif [ -x "/usr/local/bin/brew" ]; then
+  eval "$(/usr/local/bin/brew shellenv)"
+fi
+
 echo "Installing Claude Code Status Line..."
 
 # 1. Install jq if missing
@@ -23,15 +31,36 @@ mkdir -p ~/.claude
 curl -fsSL https://raw.githubusercontent.com/panic80/ccstatus/main/statusline.sh -o ~/.claude/statusline.sh
 chmod +x ~/.claude/statusline.sh
 
-# 4. Configure settings.json
+# 4. Validate downloaded script
+if [ ! -s ~/.claude/statusline.sh ]; then
+  echo "Error: Download failed or file is empty. Try again."
+  rm -f ~/.claude/statusline.sh
+  exit 1
+fi
+if ! head -1 ~/.claude/statusline.sh | grep -q '^#!/'; then
+  echo "Error: Downloaded file is corrupt (missing shebang). Try again."
+  rm -f ~/.claude/statusline.sh
+  exit 1
+fi
+
+# 5. Configure settings.json
 SETTINGS=~/.claude/settings.json
 STATUSLINE_CONFIG='{"type":"command","command":"~/.claude/statusline.sh","padding":2}'
 
 if [ -f "$SETTINGS" ]; then
-  # Merge into existing settings, preserving all other keys
-  jq --argjson sl "$STATUSLINE_CONFIG" '. + {statusLine: $sl}' "$SETTINGS" > "${SETTINGS}.tmp" \
-    && mv "${SETTINGS}.tmp" "$SETTINGS"
-  echo "Updated existing $SETTINGS"
+  # Backup existing settings before modifying
+  cp "$SETTINGS" "${SETTINGS}.bak"
+
+  if jq empty "$SETTINGS" 2>/dev/null; then
+    # Valid JSON — merge, preserving all other keys
+    jq --argjson sl "$STATUSLINE_CONFIG" '. + {statusLine: $sl}' "$SETTINGS" > "${SETTINGS}.tmp" \
+      && mv "${SETTINGS}.tmp" "$SETTINGS"
+    echo "Updated existing $SETTINGS (backup at ${SETTINGS}.bak)"
+  else
+    # Invalid JSON — warn and create fresh
+    echo "Warning: existing $SETTINGS is not valid JSON. Backed up to ${SETTINGS}.bak and creating fresh."
+    echo "{\"statusLine\":$STATUSLINE_CONFIG}" | jq . > "$SETTINGS"
+  fi
 else
   echo "{\"statusLine\":$STATUSLINE_CONFIG}" | jq . > "$SETTINGS"
   echo "Created $SETTINGS"

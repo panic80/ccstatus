@@ -5,14 +5,31 @@
 
 set -euo pipefail
 
+# Ensure Homebrew tools are in PATH (needed for non-interactive shells)
+for brew_path in /opt/homebrew/bin /usr/local/bin; do
+  case ":$PATH:" in
+    *":$brew_path:"*) ;;  # already in PATH
+    *) [ -d "$brew_path" ] && export PATH="$brew_path:$PATH" ;;
+  esac
+done
+
 if ! command -v jq &>/dev/null; then
   echo "jq is required: brew install jq"
   exit 1
 fi
 
-CACHE_FILE="/tmp/claude-statusline-quota-cache.json"
+CACHE_DIR="${TMPDIR:-/tmp}"
+CACHE_FILE="${CACHE_DIR}/claude-statusline-quota-cache.json"
 CACHE_TTL=60  # seconds
-LOCK_FILE="/tmp/claude-statusline-quota.lock"
+LOCK_FILE="${CACHE_DIR}/claude-statusline-quota.lock"
+
+# Clean stale lock (older than 5 minutes = stuck background process)
+if [ -d "$LOCK_FILE" ]; then
+  lock_age=$(( $(date +%s) - $(stat -f %m "$LOCK_FILE" 2>/dev/null || stat -c %Y "$LOCK_FILE" 2>/dev/null || echo "0") ))
+  if (( lock_age > 300 )); then
+    rmdir "$LOCK_FILE" 2>/dev/null || true
+  fi
+fi
 
 # ── Colors ───────────────────────────────────────────────────────────────────
 GREEN="\033[32m"
@@ -132,8 +149,10 @@ fetch_quota() {
   fi
 
   # Detect Claude Code version for User-Agent
-  local cc_version
-  cc_version=$(claude --version 2>/dev/null | awk '{print $1}' || echo "0.0.0")
+  local cc_version="0.0.0"
+  if command -v claude &>/dev/null; then
+    cc_version=$(claude --version 2>/dev/null | head -1 | awk '{print $1}') || cc_version="0.0.0"
+  fi
 
   # Call the API
   local response
@@ -195,20 +214,25 @@ if [[ -f "$CACHE_FILE" ]]; then
   display_name=$(jq -r '.display_name // empty' "$CACHE_FILE" 2>/dev/null || echo "")
 
   if [[ -n "$quota_5h" ]]; then
-    quota_5h_pct=$(awk "BEGIN { printf \"%.0f\", $quota_5h }")
+    # Sanitize: strip anything that's not digits, dots, or minus
+    quota_5h=$(echo "$quota_5h" | tr -cd '0-9.\-')
+    quota_5h_pct=$(awk -v val="${quota_5h:-0}" 'BEGIN { printf "%.0f", val }')
     reset_5h=$(format_reset_time "$reset_5h_at")
   fi
   if [[ -n "$quota_weekly" ]]; then
-    quota_weekly_pct=$(awk "BEGIN { printf \"%.0f\", $quota_weekly }")
+    quota_weekly=$(echo "$quota_weekly" | tr -cd '0-9.\-')
+    quota_weekly_pct=$(awk -v val="${quota_weekly:-0}" 'BEGIN { printf "%.0f", val }')
     reset_weekly=$(format_reset_time "$reset_weekly_at")
   fi
 fi
 
 # ── Format cost ──────────────────────────────────────────────────────────────
-formatted_cost=$(awk "BEGIN { printf \"$%.2f\", ${cost:-0} }")
+cost=$(echo "${cost:-0}" | tr -cd '0-9.\-')
+formatted_cost=$(awk -v val="${cost:-0}" 'BEGIN { printf "$%.2f", val }')
 
 # ── Round context percentage ─────────────────────────────────────────────────
-context_int=$(awk "BEGIN { printf \"%.0f\", ${context_pct:-0} }")
+context_pct=$(echo "${context_pct:-0}" | tr -cd '0-9.\-')
+context_int=$(awk -v val="${context_pct:-0}" 'BEGIN { printf "%.0f", val }')
 
 # ── Build output ─────────────────────────────────────────────────────────────
 ctx_bar=$(progress_bar "$context_int" 10)

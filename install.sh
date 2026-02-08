@@ -1,73 +1,122 @@
 #!/usr/bin/env bash
-# Installer for Claude Code Status Line
-# Usage: curl -fsSL https://raw.githubusercontent.com/panic80/ccstatus/main/install.sh | bash
+# Claude Code Status Line — Installer
+# Usage:
+#   bash install.sh                       # interactive theme selection
+#   bash install.sh --theme braille       # non-interactive, explicit theme
+#   curl -fsSL <url>/install.sh | bash -s -- --theme dots
 
 set -euo pipefail
 
-# Ensure Homebrew is in PATH (Apple Silicon vs Intel)
-# Needed because curl|bash runs in a non-login shell where Homebrew may not be in PATH
-if [ -x "/opt/homebrew/bin/brew" ]; then
-  eval "$(/opt/homebrew/bin/brew shellenv)"
-elif [ -x "/usr/local/bin/brew" ]; then
-  eval "$(/usr/local/bin/brew shellenv)"
+INSTALL_DIR="$HOME/.claude"
+THEME_FILE="$INSTALL_DIR/statusline-theme"
+SCRIPT_URL="${CCSTATUS_SCRIPT_URL:-}"  # set externally for remote installs
+
+# ── Parse arguments ──────────────────────────────────────────────────────────
+theme=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --theme)
+      theme="$2"
+      shift 2
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+
+# ── Validate theme if provided ───────────────────────────────────────────────
+if [[ -n "$theme" ]]; then
+  case "$theme" in
+    braille|blocks|dots|compact) ;;
+    *)
+      echo "Error: unknown theme '$theme'"
+      echo "Valid themes: braille, blocks, dots, compact"
+      exit 1
+      ;;
+  esac
 fi
 
-echo "Installing Claude Code Status Line..."
-
-# 1. Install jq if missing
+# ── Check dependencies ──────────────────────────────────────────────────────
 if ! command -v jq &>/dev/null; then
-  echo "jq not found — installing via Homebrew..."
-  if ! command -v brew &>/dev/null; then
-    echo "Error: Homebrew is required to install jq. Install it from https://brew.sh"
-    exit 1
-  fi
-  brew install jq
-fi
-
-# 2. Ensure ~/.claude directory exists
-mkdir -p ~/.claude
-
-# 3. Download the statusline script
-curl -fsSL https://raw.githubusercontent.com/panic80/ccstatus/main/statusline.sh -o ~/.claude/statusline.sh
-chmod +x ~/.claude/statusline.sh
-
-# 4. Validate downloaded script
-if [ ! -s ~/.claude/statusline.sh ]; then
-  echo "Error: Download failed or file is empty. Try again."
-  rm -f ~/.claude/statusline.sh
-  exit 1
-fi
-if ! head -1 ~/.claude/statusline.sh | grep -q '^#!/'; then
-  echo "Error: Downloaded file is corrupt (missing shebang). Try again."
-  rm -f ~/.claude/statusline.sh
+  echo "jq is required but not installed."
+  echo "  brew install jq    (macOS)"
+  echo "  apt install jq     (Debian/Ubuntu)"
   exit 1
 fi
 
-# 5. Configure settings.json
-SETTINGS=~/.claude/settings.json
-STATUSLINE_CONFIG='{"type":"command","command":"~/.claude/statusline.sh","padding":2}'
-
-if [ -f "$SETTINGS" ]; then
-  # Backup existing settings before modifying
-  cp "$SETTINGS" "${SETTINGS}.bak"
-
-  if jq empty "$SETTINGS" 2>/dev/null; then
-    # Valid JSON — merge, preserving all other keys
-    jq --argjson sl "$STATUSLINE_CONFIG" '. + {statusLine: $sl}' "$SETTINGS" > "${SETTINGS}.tmp" \
-      && mv "${SETTINGS}.tmp" "$SETTINGS"
-    echo "Updated existing $SETTINGS (backup at ${SETTINGS}.bak)"
+# ── Theme selection (interactive) ────────────────────────────────────────────
+if [[ -z "$theme" ]]; then
+  if [ -t 0 ] || [ -e /dev/tty ]; then
+    echo ""
+    echo "  Select a status line theme:"
+    echo ""
+    echo "    1) Braille   ⣿⣿⣦⣀⣀⣀⣀⣀⣀⣀  (default)"
+    echo "    2) Blocks    [██▄░░░░░░░]"
+    echo "    3) Dots      ●●●○○○○○○○"
+    echo "    4) Compact   (no bars)"
+    echo ""
+    read -r -p "  Choice [1]: " choice </dev/tty 2>/dev/null || choice=""
+    case "$choice" in
+      2) theme="blocks"  ;;
+      3) theme="dots"    ;;
+      4) theme="compact" ;;
+      *) theme="braille" ;;
+    esac
   else
-    # Invalid JSON — warn and create fresh
-    echo "Warning: existing $SETTINGS is not valid JSON. Backed up to ${SETTINGS}.bak and creating fresh."
-    echo "{\"statusLine\":$STATUSLINE_CONFIG}" | jq . > "$SETTINGS"
+    theme="braille"  # non-interactive fallback
+  fi
+fi
+
+# ── Create install directory ─────────────────────────────────────────────────
+mkdir -p "$INSTALL_DIR"
+
+# ── Download statusline.sh (if URL provided) ────────────────────────────────
+if [[ -n "$SCRIPT_URL" ]]; then
+  echo "  Downloading statusline.sh..."
+  curl -fsSL "$SCRIPT_URL" -o "$INSTALL_DIR/statusline.sh"
+  chmod +x "$INSTALL_DIR/statusline.sh"
+fi
+
+# ── Write theme config ──────────────────────────────────────────────────────
+echo "$theme" > "$THEME_FILE"
+
+# ── Configure Claude Code settings ──────────────────────────────────────────
+SETTINGS_FILE="$INSTALL_DIR/settings.json"
+if [[ -f "$SETTINGS_FILE" ]]; then
+  # Add statusline config if not already present
+  if ! jq -e '.hooks.StatusLine' "$SETTINGS_FILE" &>/dev/null; then
+    jq '.hooks.StatusLine = [{"type": "command", "command": "bash ~/.claude/statusline.sh"}]' \
+      "$SETTINGS_FILE" > "${SETTINGS_FILE}.tmp" && mv "${SETTINGS_FILE}.tmp" "$SETTINGS_FILE"
+    echo "  Added status line hook to settings.json"
   fi
 else
-  echo "{\"statusLine\":$STATUSLINE_CONFIG}" | jq . > "$SETTINGS"
-  echo "Created $SETTINGS"
+  cat > "$SETTINGS_FILE" << 'SETTINGS'
+{
+  "hooks": {
+    "StatusLine": [
+      {
+        "type": "command",
+        "command": "bash ~/.claude/statusline.sh"
+      }
+    ]
+  }
+}
+SETTINGS
+  echo "  Created settings.json with status line hook"
 fi
 
+# ── Post-install output ─────────────────────────────────────────────────────
 echo ""
-echo "Done! Restart Claude Code to see the status line."
+echo "  Done! Restart Claude Code to see the status line."
 echo ""
-echo "  YourName [Opus 4.6] Context: [████▁░░░░░] 42% | \$1.23 | +50/-12"
-echo "  5h: [████▁░░░░░] 42% | Weekly: [█▄░░░░░░░░] 15%"
+echo "  Theme: $theme (selected)"
+echo ""
+echo "  Available themes:"
+echo "    echo \"braille\" > ~/.claude/statusline-theme   ⣿⣿⣦⣀⣀⣀⣀⣀⣀⣀"
+echo "    echo \"blocks\"  > ~/.claude/statusline-theme   [██▄░░░░░░░]"
+echo "    echo \"dots\"    > ~/.claude/statusline-theme   ●●●○○○○○○○"
+echo "    echo \"compact\" > ~/.claude/statusline-theme   (no bars)"
+echo ""
+echo "  Changes take effect on next refresh — no restart needed."
+echo ""

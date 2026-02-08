@@ -1,121 +1,86 @@
 # Claude Code Status Line
 
-A custom status line for [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) that displays your account name, model, context usage, session cost, lines changed, and API quota — all in two compact lines.
+A rich status line for Claude Code showing model, context usage, cost, lines changed, and API quota — with switchable themes.
 
+## Themes
+
+Four built-in themes. The default is **braille**.
+
+### Braille (default)
 ```
-Albert [Opus 4.6] Context: [████▁░░░░░] 42% | $1.23 | +50/-12
-5h: [████▁░░░░░] 42% | Weekly: [█▄░░░░░░░░] 15%
+╭ Claude │ [Opus] │ Ctx ⣿⣿⣦⣀⣀⣀⣀⣀⣀⣀ 25% │ $0.50 │ +10/-3
+╰ 5h ⣿⣿⣿⣿⣿⣀⣀⣀⣀⣀ 50% │ Wk ⣿⣿⣀⣀⣀⣀⣀⣀⣀⣀ 20%
+```
+Filled braille cells with dim bottom-row braille (`⣀`) for empty slots. Clean and compact.
+
+### Blocks
+```
+╭ Claude │ [Opus] │ Ctx [██▄░░░░░░░] 25% │ $0.50 │ +10/-3
+╰ 5h [█████░░░░░] 50% │ Wk [██░░░░░░░░] 20%
+```
+Classic block bars with fractional fill (`▁▂▃▄▅▆▇`) and `[brackets]`.
+
+### Dots
+```
+╭ Claude │ [Opus] │ Ctx ●●●○○○○○○○ 25% │ $0.50 │ +10/-3
+╰ 5h ●●●●●○○○○○ 50% │ Wk ●●○○○○○○○○ 20%
+```
+Filled/empty circles. No fractional fill — rounds to nearest dot.
+
+### Compact
+```
+╭ Claude │ [Opus] │ Ctx 25% │ $0.50 │ +10/-3
+╰ 5h 50% │ Wk 20%
+```
+Percentages only, no progress bars. Minimal footprint.
+
+## Switching Themes
+
+Write the theme name to `~/.claude/statusline-theme`:
+
+```bash
+echo "braille" > ~/.claude/statusline-theme
+echo "blocks"  > ~/.claude/statusline-theme
+echo "dots"    > ~/.claude/statusline-theme
+echo "compact" > ~/.claude/statusline-theme
 ```
 
-## What it shows
+Changes take effect on the next status line refresh — no restart needed.
 
-| Line | Info |
-|------|------|
-| **1** | Login name (dimmed), model, context window usage bar, session cost, lines added/removed |
-| **2** | 5-hour and weekly API quota usage bars with reset countdowns |
+If the file doesn't exist, the default theme is `braille`.
+
+## Installation
+
+### Interactive install
+```bash
+bash ~/.claude/install.sh
+```
+Shows a menu to pick your theme.
+
+### Non-interactive install
+```bash
+bash ~/.claude/install.sh --theme dots
+```
+
+### Installing via Claude Code
+Tell Claude Code: "install ccstatus" or paste the repo URL.
+Claude Code will ask which theme you prefer before installing.
+You can also specify directly:
+```bash
+curl -fsSL <url>/install.sh | bash -s -- --theme dots
+```
 
 ## Requirements
 
-- macOS 12 (Monterey) or later
-- Claude Code CLI with OAuth authentication
-- `jq` — ships with macOS 15+; on older versions, install via `brew install jq`
-- `curl` — ships with all macOS versions
+- **jq** — `brew install jq` (macOS) or `apt install jq` (Linux)
+- **Claude Code** with StatusLine hook support
 
-## Install
+## How It Works
 
-One command — installs jq if missing, downloads the script, and configures Claude Code:
+The status line script (`~/.claude/statusline.sh`) runs as a Claude Code StatusLine hook. It:
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/panic80/ccstatus/main/install.sh | bash
-```
+1. Reads JSON from stdin (model, context, cost, lines changed)
+2. Fetches API quota data (cached, background refresh every 60s)
+3. Renders a two-line status bar with the active theme
 
-Then restart Claude Code.
-
-## Manual Install
-
-### 1. Download the script
-
-```bash
-mkdir -p ~/.claude
-curl -fsSL https://raw.githubusercontent.com/panic80/ccstatus/main/statusline.sh -o ~/.claude/statusline.sh
-chmod +x ~/.claude/statusline.sh
-```
-
-### 2. Configure Claude Code to use it
-
-If `~/.claude/settings.json` doesn't exist yet, create it:
-
-```bash
-echo '{"statusLine":{"type":"command","command":"~/.claude/statusline.sh","padding":2}}' > ~/.claude/settings.json
-```
-
-If it already exists, add the `statusLine` key to the existing JSON:
-
-```json
-{
-  "statusLine": {
-    "type": "command",
-    "command": "~/.claude/statusline.sh",
-    "padding": 2
-  }
-}
-```
-
-### 3. Restart Claude Code
-
-The status line appears at the bottom of your terminal on the next session.
-
-## How it works
-
-- Claude Code pipes a JSON blob to the script's stdin on each render containing the current model, context window percentage, cost, and lines changed.
-- The script fetches your **API quota** (5-hour and weekly utilization) and **account profile** (display name) from the Anthropic OAuth API using the token stored in the macOS Keychain.
-- Both API calls run in a **background process** with results cached to a per-user temp directory (60-second TTL), so the status line renders instantly from cache.
-- If the API calls fail or no token is found, the status line gracefully omits the quota and name — no errors shown.
-
-## Customization
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `CACHE_TTL` | `60` | Seconds between API refreshes |
-| `CACHE_DIR` | `$TMPDIR` (falls back to `/tmp`) | Directory for cache and lock files |
-
-Edit these at the top of `statusline.sh`.
-
-## Troubleshooting
-
-**Status line shows "jq is required"**
-Your PATH may not include Homebrew. Run: `eval "$(/opt/homebrew/bin/brew shellenv)"` (Apple Silicon) or `eval "$(/usr/local/bin/brew shellenv)"` (Intel) and ensure jq is installed. The hardened statusline.sh automatically adds Homebrew paths, but if you installed jq elsewhere, ensure it's in your PATH.
-
-**Quota shows `--`**
-The first render after a cold start has no cache yet. Wait ~60 seconds for the background fetch to complete. If it persists, check for a stale lock:
-
-```bash
-rmdir "${TMPDIR:-/tmp}/claude-statusline-quota.lock" 2>/dev/null
-```
-
-The script automatically cleans stale locks older than 5 minutes, but you can force it manually.
-
-**Installer can't find brew**
-On Apple Silicon, Homebrew is at `/opt/homebrew/bin` which may not be in PATH for `curl | bash`. The installer now auto-detects Homebrew location, but if issues persist, run the installer from your terminal after opening a new shell.
-
-**Name not showing**
-The profile API call may have failed. Check that your token has the `user:profile` scope (it does by default for Claude Code logins). Inspect the cache:
-
-```bash
-jq '.display_name' "${TMPDIR:-/tmp}/claude-statusline-quota-cache.json"
-```
-
-**No status line at all**
-Verify the script runs standalone:
-
-```bash
-echo '{"model":{"display_name":"Test"},"context_window":{"used_percentage":50},"cost":{"total_cost_usd":0,"total_lines_added":0,"total_lines_removed":0}}' | ~/.claude/statusline.sh
-```
-
-## Uninstall
-
-```bash
-rm ~/.claude/statusline.sh
-# Remove "statusLine" key from settings.json:
-jq 'del(.statusLine)' ~/.claude/settings.json > ~/.claude/settings.json.tmp && mv ~/.claude/settings.json.tmp ~/.claude/settings.json
-```
+The theme is read fresh on every invocation from `~/.claude/statusline-theme`, so switching is instant.

@@ -41,6 +41,10 @@ BOLD_WHITE="\033[1;97m"
 CYAN="\033[36m"
 RESET="\033[0m"
 
+# ── Theme ─────────────────────────────────────────────────────────────────────
+THEME_FILE="$HOME/.claude/statusline-theme"
+THEME=$(cat "$THEME_FILE" 2>/dev/null || echo "braille")
+
 # ── Read stdin JSON ──────────────────────────────────────────────────────────
 INPUT=$(cat)
 
@@ -62,13 +66,41 @@ color_for_pct() {
   fi
 }
 
-# ── Helper: progress bar (granular using Unicode fractional blocks) ─────────
+# ── Helper: progress bar (theme-aware) ──────────────────────────────────────
 progress_bar() {
   local pct=$1
   local width=${2:-12}
 
-  # Fractional block chars indexed by eighths (0=none, 1=▁ .. 7=▇)
-  local -a fractional=( "" "▁" "▂" "▃" "▄" "▅" "▆" "▇" )
+  case "$THEME" in
+    compact)
+      echo ""
+      return
+      ;;
+    dots)
+      local total_filled=$(( (pct * width + 50) / 100 ))
+      (( total_filled > width )) && total_filled=$width
+      local empty=$(( width - total_filled ))
+      local color
+      color=$(color_for_pct "$pct")
+      local bar="${color}"
+      for ((i=0; i<total_filled; i++)); do bar+="●"; done
+      bar+="${DIM}"
+      for ((i=0; i<empty; i++)); do bar+="○"; done
+      bar+="${RESET}"
+      echo -e "$bar"
+      return
+      ;;
+    braille)
+      local filled_char="⣿"
+      local empty_char="⣀"
+      local -a fractional=( "" "⣀" "⣄" "⣤" "⣦" "⣶" "⣷" "⣿" )
+      ;;
+    *) # blocks
+      local filled_char="█"
+      local empty_char="░"
+      local -a fractional=( "" "▁" "▂" "▃" "▄" "▅" "▆" "▇" )
+      ;;
+  esac
 
   local total_eighths=$(( pct * width * 8 / 100 ))
   local full=$(( total_eighths / 8 ))
@@ -81,12 +113,12 @@ progress_bar() {
   color=$(color_for_pct "$pct")
 
   local bar="${color}"
-  for ((i=0; i<full; i++)); do bar+="█"; done
+  for ((i=0; i<full; i++)); do bar+="$filled_char"; done
   if (( partial > 0 )); then
     bar+="${fractional[$partial]}"
   fi
   bar+="${DIM}"
-  for ((i=0; i<empty; i++)); do bar+="░"; done
+  for ((i=0; i<empty; i++)); do bar+="$empty_char"; done
   bar+="${RESET}"
   echo -e "$bar"
 }
@@ -246,14 +278,40 @@ fi
 model_display="${RESET}${BOLD_WHITE}[${model}]${RESET}"
 sep="${DIM}│${RESET}"
 
-line1="${DIM}╭${RESET} ${name_prefix}${sep} ${model_display} ${sep} ${CYAN}Ctx${RESET} ${DIM}[${RESET}${ctx_bar}${DIM}]${RESET} ${context_int}% ${sep} ${formatted_cost} ${sep} ${GREEN}+${lines_added}${RESET}${DIM}/${RESET}${RED}-${lines_removed}${RESET}"
+# Theme-aware context section
+case "$THEME" in
+  blocks)
+    ctx_section="${CYAN}Ctx${RESET} ${DIM}[${RESET}${ctx_bar}${DIM}]${RESET} ${context_int}%"
+    ;;
+  compact)
+    ctx_color=$(color_for_pct "$context_int")
+    ctx_section="${CYAN}Ctx${RESET} ${ctx_color}${context_int}%${RESET}"
+    ;;
+  *)
+    ctx_section="${CYAN}Ctx${RESET} ${ctx_bar} ${context_int}%"
+    ;;
+esac
+
+line1="${DIM}╭${RESET} ${name_prefix}${sep} ${model_display} ${sep} ${ctx_section} ${sep} ${formatted_cost} ${sep} ${GREEN}+${lines_added}${RESET}${DIM}/${RESET}${RED}-${lines_removed}${RESET}"
 
 if [[ "$quota_5h_pct" == "--" ]]; then
   line2="${DIM}╰${RESET} 5h: -- ${sep} Wk: --"
 else
   q5_bar=$(progress_bar "$quota_5h_pct" 10)
   qw_bar=$(progress_bar "$quota_weekly_pct" 10)
-  line2="${DIM}╰${RESET} ${CYAN}5h${RESET} ${DIM}[${RESET}${q5_bar}${DIM}]${RESET} ${quota_5h_pct}%${reset_5h} ${sep} ${CYAN}Wk${RESET} ${DIM}[${RESET}${qw_bar}${DIM}]${RESET} ${quota_weekly_pct}%${reset_weekly}"
+  case "$THEME" in
+    blocks)
+      line2="${DIM}╰${RESET} ${CYAN}5h${RESET} ${DIM}[${RESET}${q5_bar}${DIM}]${RESET} ${quota_5h_pct}%${reset_5h} ${sep} ${CYAN}Wk${RESET} ${DIM}[${RESET}${qw_bar}${DIM}]${RESET} ${quota_weekly_pct}%${reset_weekly}"
+      ;;
+    compact)
+      q5_color=$(color_for_pct "$quota_5h_pct")
+      qw_color=$(color_for_pct "$quota_weekly_pct")
+      line2="${DIM}╰${RESET} ${CYAN}5h${RESET} ${q5_color}${quota_5h_pct}%${RESET}${reset_5h} ${sep} ${CYAN}Wk${RESET} ${qw_color}${quota_weekly_pct}%${RESET}${reset_weekly}"
+      ;;
+    *)
+      line2="${DIM}╰${RESET} ${CYAN}5h${RESET} ${q5_bar} ${quota_5h_pct}%${reset_5h} ${sep} ${CYAN}Wk${RESET} ${qw_bar} ${quota_weekly_pct}%${reset_weekly}"
+      ;;
+  esac
 fi
 
 echo -e "$line1"

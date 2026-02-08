@@ -84,26 +84,29 @@ echo "$theme" > "$THEME_FILE"
 # ── Configure Claude Code settings ──────────────────────────────────────────
 SETTINGS_FILE="$INSTALL_DIR/settings.json"
 if [[ -f "$SETTINGS_FILE" ]]; then
-  # Add statusline config if not already present
-  if ! jq -e '.hooks.StatusLine' "$SETTINGS_FILE" &>/dev/null; then
-    jq '.hooks.StatusLine = [{"type": "command", "command": "bash ~/.claude/statusline.sh"}]' \
+  # Migrate: remove broken hooks.StatusLine from previous installs
+  if jq -e '.hooks.StatusLine' "$SETTINGS_FILE" &>/dev/null; then
+    jq 'del(.hooks.StatusLine) | if .hooks == {} then del(.hooks) else . end' \
       "$SETTINGS_FILE" > "${SETTINGS_FILE}.tmp" && mv "${SETTINGS_FILE}.tmp" "$SETTINGS_FILE"
-    echo "  Added status line hook to settings.json"
+    echo "  Removed invalid hooks.StatusLine from settings.json"
+  fi
+  # Add top-level statusLine config if not already present
+  if ! jq -e '.statusLine' "$SETTINGS_FILE" &>/dev/null; then
+    jq '.statusLine = {"type": "command", "command": "bash ~/.claude/statusline.sh", "padding": 2}' \
+      "$SETTINGS_FILE" > "${SETTINGS_FILE}.tmp" && mv "${SETTINGS_FILE}.tmp" "$SETTINGS_FILE"
+    echo "  Added status line config to settings.json"
   fi
 else
   cat > "$SETTINGS_FILE" << 'SETTINGS'
 {
-  "hooks": {
-    "StatusLine": [
-      {
-        "type": "command",
-        "command": "bash ~/.claude/statusline.sh"
-      }
-    ]
+  "statusLine": {
+    "type": "command",
+    "command": "bash ~/.claude/statusline.sh",
+    "padding": 2
   }
 }
 SETTINGS
-  echo "  Created settings.json with status line hook"
+  echo "  Created settings.json with status line config"
 fi
 
 # ── Post-install output ─────────────────────────────────────────────────────

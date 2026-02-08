@@ -73,11 +73,11 @@ curl -fsSL <url>/install.sh | bash -s -- --theme dots
 ## Requirements
 
 - **jq** — `brew install jq` (macOS) or `apt install jq` (Linux)
-- **Claude Code** with StatusLine hook support
+- **Claude Code** with status line support
 
 ## How It Works
 
-The status line script (`~/.claude/statusline.sh`) runs as a Claude Code StatusLine hook. It:
+The status line script (`~/.claude/statusline.sh`) runs as a Claude Code status line command. It:
 
 1. Reads JSON from stdin (model, context, cost, lines changed)
 2. Fetches API quota data (cached, background refresh every 60s)

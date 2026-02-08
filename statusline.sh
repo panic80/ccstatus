@@ -38,6 +38,7 @@ RED="\033[31m"
 DIM="\033[2m"
 BOLD="\033[1m"
 BOLD_WHITE="\033[1;97m"
+CYAN="\033[36m"
 RESET="\033[0m"
 
 # ── Read stdin JSON ──────────────────────────────────────────────────────────
@@ -117,11 +118,11 @@ format_reset_time() {
   hours=$(( (diff % 86400) / 3600 ))
   mins=$(( (diff % 3600) / 60 ))
   if (( days > 0 )); then
-    echo " (resets ${days}d ${hours}h)"
+    echo " ${DIM}↻ ${days}d ${hours}h${RESET}"
   elif (( hours > 0 )); then
-    echo " (resets ${hours}h ${mins}m)"
+    echo " ${DIM}↻ ${hours}h ${mins}m${RESET}"
   else
-    echo " (resets ${mins}m)"
+    echo " ${DIM}↻ ${mins}m${RESET}"
   fi
 }
 
@@ -243,15 +244,16 @@ if [[ -n "${display_name:-}" ]]; then
 fi
 
 model_display="${RESET}${BOLD_WHITE}[${model}]${RESET}"
+sep="${DIM}│${RESET}"
 
-line1="${name_prefix}${model_display} Context: [${ctx_bar}] ${context_int}% | ${formatted_cost} | ${GREEN}+${lines_added}${RESET}/${RED}-${lines_removed}${RESET}"
+line1="${DIM}╭${RESET} ${name_prefix}${sep} ${model_display} ${sep} ${CYAN}Ctx${RESET} ${DIM}[${RESET}${ctx_bar}${DIM}]${RESET} ${context_int}% ${sep} ${formatted_cost} ${sep} ${GREEN}+${lines_added}${RESET}${DIM}/${RESET}${RED}-${lines_removed}${RESET}"
 
 if [[ "$quota_5h_pct" == "--" ]]; then
-  line2="5h: -- | Weekly: --"
+  line2="${DIM}╰${RESET} 5h: -- ${sep} Wk: --"
 else
   q5_bar=$(progress_bar "$quota_5h_pct" 10)
   qw_bar=$(progress_bar "$quota_weekly_pct" 10)
-  line2="5h: [${q5_bar}] ${quota_5h_pct}%${reset_5h} | Weekly: [${qw_bar}] ${quota_weekly_pct}%${reset_weekly}"
+  line2="${DIM}╰${RESET} ${CYAN}5h${RESET} ${DIM}[${RESET}${q5_bar}${DIM}]${RESET} ${quota_5h_pct}%${reset_5h} ${sep} ${CYAN}Wk${RESET} ${DIM}[${RESET}${qw_bar}${DIM}]${RESET} ${quota_weekly_pct}%${reset_weekly}"
 fi
 
 echo -e "$line1"

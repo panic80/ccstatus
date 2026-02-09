@@ -1,6 +1,6 @@
 # Claude Code Status Line
 
-A rich status line for Claude Code showing model, context usage, cost, lines changed, and API quota — with switchable themes.
+A rich status line for Claude Code showing model, context usage, cost, lines changed, and API quota — with switchable themes. Works on **macOS** and **Linux**.
 
 ## Themes
 
@@ -95,3 +95,12 @@ The status line script (`~/.claude/statusline.sh`) runs as a Claude Code status 
 3. Renders a two-line status bar with the active theme
 
 The theme is read fresh on every invocation from `~/.claude/statusline-theme`, so switching is instant.
+
+### Credentials
+
+Quota display requires an OAuth token. The script checks these sources in order:
+
+1. **macOS Keychain** — `security find-generic-password -s "Claude Code-credentials"`
+2. **Credential file** — `~/.claude/.credentials.json` (used on Linux or when Keychain is unavailable)
+
+If neither source has a token, quota shows `--` and the status line still works for model/context/cost.

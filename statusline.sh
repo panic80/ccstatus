@@ -14,7 +14,7 @@ for brew_path in /opt/homebrew/bin /usr/local/bin; do
 done
 
 if ! command -v jq &>/dev/null; then
-  echo "jq is required: brew install jq"
+  echo "jq is required: $(command -v apt &>/dev/null && echo 'apt install jq' || echo 'brew install jq')"
   exit 1
 fi
 
@@ -25,7 +25,7 @@ LOCK_FILE="${CACHE_DIR}/claude-statusline-quota.lock"
 
 # Clean stale lock (older than 5 minutes = stuck background process)
 if [ -d "$LOCK_FILE" ]; then
-  lock_age=$(( $(date +%s) - $(stat -f %m "$LOCK_FILE" 2>/dev/null || stat -c %Y "$LOCK_FILE" 2>/dev/null || echo "0") ))
+  lock_age=$(( $(date +%s) - $(stat -c %Y "$LOCK_FILE" 2>/dev/null || stat -f %m "$LOCK_FILE" 2>/dev/null || echo "0") ))
   if (( lock_age > 300 )); then
     rmdir "$LOCK_FILE" 2>/dev/null || true
   fi
@@ -166,9 +166,12 @@ fetch_quota() {
   fi
   trap 'rmdir "$LOCK_FILE" 2>/dev/null' EXIT
 
-  # Extract OAuth token from macOS Keychain
+  # Extract OAuth token: try macOS Keychain first, fall back to Linux credential file
   local token
   token=$(security find-generic-password -s "Claude Code-credentials" -w 2>/dev/null || echo "")
+  if [[ -z "$token" ]] && [[ -f "$HOME/.claude/.credentials.json" ]]; then
+    token=$(cat "$HOME/.claude/.credentials.json")
+  fi
   if [[ -z "$token" ]]; then
     rmdir "$LOCK_FILE" 2>/dev/null
     return
@@ -228,7 +231,7 @@ reset_5h=""
 reset_weekly=""
 
 if [[ -f "$CACHE_FILE" ]]; then
-  cache_age=$(( $(date +%s) - $(stat -f %m "$CACHE_FILE" 2>/dev/null || stat -c %Y "$CACHE_FILE" 2>/dev/null || echo "0") ))
+  cache_age=$(( $(date +%s) - $(stat -c %Y "$CACHE_FILE" 2>/dev/null || stat -f %m "$CACHE_FILE" 2>/dev/null || echo "0") ))
 else
   cache_age=$((CACHE_TTL + 1))  # Force fetch
 fi
